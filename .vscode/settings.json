@@ -1,0 +1,15 @@
+{
+  "dart.flutterSdkPath": "/opt/homebrew/share/flutter",
+  "dart.debugExternalPackageLibraries": false,
+  "dart.debugSdkLibraries": false,
+  "editor.rulers": [80, 120],
+  "editor.formatOnSave": true,
+  "dart.lineLength": 80,
+  "files.associations": {
+    "*.dart": "dart"
+  },
+  "dart.showInspectorNotificationsForWidgetErrors": true,
+  "dart.hotReloadOnSave": "always",
+  "dart.previewFlutterUiGuides": true,
+  "dart.previewFlutterUiGuidesCustomTracking": true
+}

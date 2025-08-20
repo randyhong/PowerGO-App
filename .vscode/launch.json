@@ -1,0 +1,34 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Flutter Web Debug",
+      "request": "launch",
+      "type": "dart",
+      "args": ["-d", "chrome", "--web-port", "3000"],
+      "program": "lib/main.dart"
+    },
+    {
+      "name": "Flutter Web Profile",
+      "request": "launch",
+      "type": "dart",
+      "flutterMode": "profile",
+      "args": ["-d", "chrome", "--web-port", "3000"],
+      "program": "lib/main.dart"
+    },
+    {
+      "name": "Flutter macOS Debug",
+      "request": "launch",
+      "type": "dart",
+      "args": ["-d", "macos"],
+      "program": "lib/main.dart"
+    },
+    {
+      "name": "Flutter Android Debug",
+      "request": "launch",
+      "type": "dart",
+      "args": ["-d", "android"],
+      "program": "lib/main.dart"
+    }
+  ]
+}

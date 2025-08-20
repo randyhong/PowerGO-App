@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(tar:*)",
+      "Bash(flutter:*)",
+      "Bash(brew install:*)",
+      "Bash(curl:*)",
+      "Bash(unzip:*)",
+      "Bash(mv:*)",
+      "Bash(./sdkmanager \"platforms;android-34\" \"build-tools;34.0.0\" \"platform-tools\")",
+      "Bash(rm:*)",
+      "Bash(./gradlew:*)",
+      "Bash(dart run:*)",
+      "Bash(pod install:*)",
+      "Bash(chmod:*)",
+      "Bash(./ios_build_verify.sh:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(sips:*)",
+      "Bash(./build_optimized.sh)"
+    ],
+    "deny": [],
+    "ask": [],
+    "additionalDirectories": [
+      "/Users/hmw"
+    ]
+  }
+}

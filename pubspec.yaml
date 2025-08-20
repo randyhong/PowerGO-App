@@ -1,0 +1,49 @@
+name: powergo
+description: A cross-platform mobile app for remote server management
+
+publish_to: 'none'
+
+version: 1.0.2+3
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: ">=3.10.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.2
+  shared_preferences: ^2.2.2
+  http: ^1.1.0
+  flutter_launcher_icons: ^0.13.1
+  dartssh2: ^2.9.0
+  package_info_plus: ^8.0.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+
+# flutter_launcher_icons configuration
+flutter_launcher_icons:
+  android: "ic_launcher"
+  ios: true
+  image_path: "assets/images/powergo_icon.png"
+  remove_alpha_ios: true
+  # 关闭adaptive图标，使用传统固定图标
+  # adaptive_icon_background: "#1A365D"
+  # adaptive_icon_foreground: "assets/images/powergo_icon.png"
+  min_sdk_android: 21
+  web:
+    generate: false
+  windows:
+    generate: false
+  macos:
+    generate: false
+
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/ # This ensures assets/images/powergo_icon.png is bundled if not already
+    # - assets/images/ # This line is redundant if 'assets/' is present and includes subdirectories
