@@ -18,7 +18,8 @@
       "Bash(grep:*)",
       "Bash(find:*)",
       "Bash(sips:*)",
-      "Bash(./build_optimized.sh)"
+      "Bash(./build_optimized.sh)",
+      "Bash(adb:*)"
     ],
     "deny": [],
     "ask": [],

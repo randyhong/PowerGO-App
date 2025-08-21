@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/server.dart';
 import '../services/storage_service.dart';
 import '../services/server_service.dart';
+import '../services/debug_service.dart';
 
 class AddServerScreen extends StatefulWidget {
   final Server? server;
@@ -56,40 +57,16 @@ class _AddServerScreenState extends State<AddServerScreen> {
   Future<void> _saveServer() async {
     if (!_formKey.currentState!.validate()) return;
 
+    await DebugService.logServerAction('🚀 开始保存服务器: ${_nameController.text.trim()}');
     setState(() {
       _isLoading = true;
     });
 
     try {
-      String? finalMacAddress = _macAddressController.text.trim();
+      final macAddress = _macAddressController.text.trim();
+      await DebugService.logServerAction('📝 MAC地址输入: "${macAddress.isEmpty ? "空" : macAddress}"');
       
-      // 如果MAC地址为空，尝试自动探测
-      if (finalMacAddress.isEmpty) {
-        print('MAC地址为空，开始自动探测...');
-        
-        // 先创建临时服务器对象用于探测
-        final tempServer = Server(
-          id: 'temp',
-          name: _nameController.text.trim(),
-          host: _hostController.text.trim(),
-          port: int.parse(_portController.text.trim()),
-          username: _usernameController.text.trim(),
-          password: _passwordController.text,
-          authType: _authType,
-        );
-        
-        // 尝试自动探测MAC地址
-        final detectionResult = await _detectMacAddress(tempServer);
-        if (detectionResult.success && detectionResult.macAddress != null) {
-          finalMacAddress = detectionResult.macAddress!;
-          // 更新UI显示探测到的MAC地址
-          _macAddressController.text = finalMacAddress;
-          _showInfoSnackBar('自动探测到MAC地址: $finalMacAddress');
-        } else {
-          _showWarningSnackBar('未能自动探测到MAC地址\n${detectionResult.error ?? "可稍后手动编辑添加"}');
-        }
-      }
-      
+      // 创建服务器对象（不等待MAC地址检测）
       final server = Server(
         id: widget.server?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
         name: _nameController.text.trim(),
@@ -98,53 +75,95 @@ class _AddServerScreenState extends State<AddServerScreen> {
         username: _usernameController.text.trim(),
         password: _passwordController.text,
         authType: _authType,
-        macAddress: finalMacAddress.isNotEmpty ? finalMacAddress : null,
+        macAddress: macAddress.isNotEmpty ? macAddress : null,
       );
 
+      // 立即保存服务器（不等待检测完成）
       if (widget.server != null) {
         await StorageService.updateServer(server);
-        
-        // 立即检测服务器状态
-        final status = await ServerService.checkServerStatus(server);
-        final updatedServer = server.copyWith(
-          isOnline: status.isOnline,
-          pingTime: status.pingTime,
-        );
-        await StorageService.updateServer(updatedServer);
-        
-        _showSuccessSnackBar('服务器更新成功');
-        // 延迟返回上一页面
-        Future.delayed(const Duration(milliseconds: 1500), () {
-          if (mounted) {
-            Navigator.of(context).pop(true); // 传递true表示有更新
-          }
-        });
       } else {
         await StorageService.addServer(server);
-        
-        // 立即检测新添加服务器的状态
-        final status = await ServerService.checkServerStatus(server);
-        final updatedServer = server.copyWith(
-          isOnline: status.isOnline,
-          pingTime: status.pingTime,
-        );
-        await StorageService.updateServer(updatedServer);
-        
-        _showSuccessSnackBar('服务器添加成功');
-        // 延迟跳转到服务器列表页
-        Future.delayed(const Duration(milliseconds: 1500), () {
-          if (mounted) {
-            Navigator.of(context).pop({'success': true, 'switchToServers': true});
-          }
+      }
+
+      // 异步启动MAC地址检测和状态检测
+      await DebugService.logServerAction('💾 服务器保存成功，启动异步检测');
+      _performAsyncDetections(server);
+      
+      // 立即返回上一页面，不等待检测完成
+      if (mounted) {
+        Navigator.of(context).pop({
+          'success': true,
+          'switchToServers': true,
         });
-        _clearForm();
       }
     } catch (e) {
       _showErrorSnackBar('保存失败: $e');
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  // 异步执行MAC地址检测和状态检测（不阻塞用户操作）
+  void _performAsyncDetections(Server server) async {
+    await DebugService.logServerAction('🔍 开始异步检测 - ${server.name}');
+    await DebugService.logServerAction('📡 当前MAC: ${server.macAddress ?? "未设置"}');
+    
+    // 如果没有MAC地址，异步尝试检测
+    if (server.macAddress == null || server.macAddress!.isEmpty) {
+      await DebugService.logMacDetection('⚡ 触发MAC检测');
+      _performAsyncMacDetection(server);
+    } else {
+      await DebugService.logMacDetection('⏭️ 跳过MAC检测（已有地址）');
+    }
+    
+    // 异步检测服务器状态
+    await DebugService.logNetwork('📊 触发状态检测');
+    _performAsyncStatusDetection(server);
+  }
+
+  // 异步MAC地址检测
+  void _performAsyncMacDetection(Server server) async {
+    try {
+      await DebugService.logMacDetection('🔍 开始MAC检测: ${server.host}:${server.port}');
+      // 使用不修改UI状态的检测方法
+      final detectionResult = await MacAddressDetector.detectMacAddress(server);
+      
+      await DebugService.logMacDetection('🔍 MAC检测完成 - 成功: ${detectionResult.success}');
+      if (detectionResult.success && detectionResult.macAddress != null) {
+        await DebugService.logMacDetection('✅ 检测到MAC: ${detectionResult.macAddress}');
+        // 更新服务器的MAC地址
+        final updatedServer = server.copyWith(
+          macAddress: detectionResult.macAddress,
+        );
+        await StorageService.updateServer(updatedServer);
+        await DebugService.logMacDetection('💾 MAC已保存: ${server.name}');
+      } else {
+        await DebugService.logError('MAC检测失败: ${detectionResult.error ?? "未知错误"}');
+      }
+    } catch (e) {
+      await DebugService.logError('MAC检测异常', e);
+    }
+  }
+
+  // 异步状态检测
+  void _performAsyncStatusDetection(Server server) async {
+    try {
+      print('后台异步检测状态: ${server.name}');
+      final status = await ServerService.checkServerStatus(server);
+      
+      // 更新服务器状态
+      final updatedServer = server.copyWith(
+        isOnline: status.isOnline,
+        pingTime: status.pingTime,
+      );
+      await StorageService.updateServer(updatedServer);
+      print('异步状态检测完成: ${status.isOnline ? "在线" : "离线"}');
+    } catch (e) {
+      print('异步状态检测出错: $e');
     }
   }
 
@@ -189,20 +208,6 @@ class _AddServerScreenState extends State<AddServerScreen> {
     return parts.join(':');
   }
 
-  // MAC地址探测方法
-  Future<MacDetectionResult> _detectMacAddress(Server server) async {
-    setState(() {
-      _isDetectingMac = true;
-    });
-
-    try {
-      return await MacAddressDetector.detectMacAddress(server);
-    } finally {
-      setState(() {
-        _isDetectingMac = false;
-      });
-    }
-  }
 
   // 手动触发MAC地址探测
   Future<void> _manualDetectMac() async {
@@ -343,6 +348,32 @@ class _AddServerScreenState extends State<AddServerScreen> {
       appBar: AppBar(
         title: Text(widget.server != null ? '编辑服务器' : '添加服务器'),
         actions: [
+          // 测试MAC检测按钮
+          IconButton(
+            icon: const Icon(Icons.network_check),
+            tooltip: '测试MAC检测',
+            onPressed: () async {
+              if (!_formKey.currentState!.validate()) return;
+              final server = Server(
+                id: DateTime.now().millisecondsSinceEpoch.toString(),
+                name: _nameController.text.trim(),
+                host: _hostController.text.trim(),
+                port: int.parse(_portController.text.trim()),
+                username: _usernameController.text.trim(),
+                password: _passwordController.text,
+                authType: _authType,
+                macAddress: null, // 强制为空来触发检测
+              );
+              await DebugService.logMacDetection('🐛 手动测试MAC检测');
+              _performAsyncMacDetection(server);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('MAC检测已启动，请到设置→调试功能→查看调试日志查看结果'),
+                  duration: Duration(seconds: 3),
+                ),
+              );
+            },
+          ),
           if (widget.server == null)
             TextButton(
               onPressed: _clearForm,
@@ -500,7 +531,7 @@ class _AddServerScreenState extends State<AddServerScreen> {
                     ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<AuthType>(
-                      value: _authType,
+                      initialValue: _authType,
                       decoration: const InputDecoration(
                         labelText: '认证方式',
                         border: OutlineInputBorder(),

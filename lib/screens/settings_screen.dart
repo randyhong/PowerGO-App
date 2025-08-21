@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:powergo/services/storage_service.dart';
 import 'package:powergo/services/settings_service.dart';
+import 'package:powergo/services/debug_service.dart';
 import 'package:powergo/main.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -10,15 +12,16 @@ class SettingsScreen extends StatefulWidget {
   const SettingsScreen({Key? key, this.onSettingsChanged}) : super(key: key);
 
   @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
+  State<SettingsScreen> createState() => SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObserver {
+class SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObserver {
   AppThemeMode _themeMode = AppThemeMode.system;
   bool _autoRefresh = true;
   int _refreshInterval = 30;
   String _appVersion = '加载中...';
   String _buildNumber = '';
+  bool _debugEnabled = false;
 
   @override
   void initState() {
@@ -47,11 +50,13 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
     final themeMode = await SettingsService.getThemeMode();
     final autoRefresh = await SettingsService.getAutoRefresh();
     final refreshInterval = await SettingsService.getRefreshInterval();
+    final debugEnabled = DebugService.isEnabled();
     
     setState(() {
       _themeMode = themeMode;
       _autoRefresh = autoRefresh;
       _refreshInterval = refreshInterval;
+      _debugEnabled = debugEnabled;
     });
   }
 
@@ -72,6 +77,11 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
       case AppThemeMode.dark:
         return '始终使用深色主题';
     }
+  }
+
+  // 响应外部设置变化的方法，供主屏幕调用
+  void onSettingsChanged() {
+    _loadSettings(); // 重新加载设置并更新UI状态
   }
 
   @override
@@ -186,6 +196,46 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
             child: Column(
               children: [
                 const ListTile(
+                  leading: Icon(Icons.bug_report),
+                  title: Text(
+                    '调试功能',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                SwitchListTile(
+                  title: const Text('启用调试日志'),
+                  subtitle: const Text('记录应用运行日志，用于问题排查'),
+                  value: _debugEnabled,
+                  onChanged: (value) async {
+                    await DebugService.setEnabled(value);
+                    setState(() {
+                      _debugEnabled = value;
+                    });
+                    widget.onSettingsChanged?.call();
+                  },
+                ),
+                if (_debugEnabled) ...[
+                  ListTile(
+                    title: const Text('查看调试日志'),
+                    subtitle: const Text('查看详细的应用运行日志'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => _showDebugLogs(),
+                  ),
+                  ListTile(
+                    title: const Text('清空调试日志'),
+                    subtitle: const Text('删除所有已记录的调试信息'),
+                    trailing: const Icon(Icons.delete, color: Colors.orange),
+                    onTap: () => _clearDebugLogs(),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          Card(
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              children: [
+                const ListTile(
                   leading: Icon(Icons.info),
                   title: Text(
                     '关于',
@@ -253,6 +303,258 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
             child: const Text('确定', style: TextStyle(color: Colors.red)),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showDebugLogs() {
+    final logs = DebugService.getAllLogs();
+    final stats = DebugService.getLogStats();
+    
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          appBar: AppBar(
+            title: const Text('调试日志'),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.share),
+                onPressed: () => _exportLogs(),
+              ),
+            ],
+          ),
+          body: Column(
+            children: [
+              // 统计信息
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue[200]!),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '日志统计',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue[800],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text('总日志数: ${stats['totalLogs']}'),
+                    if (stats['firstLogTime'] != null)
+                      Text('最早日志: ${stats['firstLogTime']}'),
+                    if (stats['lastLogTime'] != null)
+                      Text('最新日志: ${stats['lastLogTime']}'),
+                  ],
+                ),
+              ),
+              // 日志列表
+              Expanded(
+                child: logs.isEmpty
+                    ? const Center(
+                        child: Text(
+                          '暂无调试日志\n\n执行一些操作（如添加服务器）后\n日志将在这里显示',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      )
+                    : Container(
+                        margin: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[50],
+                          border: Border.all(color: Colors.grey[300]!),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Column(
+                          children: [
+                            // 日志内容区域
+                            Expanded(
+                              child: Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(16),
+                                child: SingleChildScrollView(
+                                  child: Text(
+                                    logs.join('\n'), // 正序显示，所有日志连接成一个文本
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontFamily: 'monospace',
+                                      height: 1.3,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            // 底部操作栏
+                            Container(
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: Colors.grey[100],
+                                border: Border(
+                                  top: BorderSide(color: Colors.grey[300]!),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  const SizedBox(width: 16),
+                                  Icon(Icons.info_outline, 
+                                    size: 16, 
+                                    color: Colors.grey[600]),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    '共 ${logs.length} 条日志',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  TextButton.icon(
+                                    onPressed: () => _copyLogsToClipboard(logs),
+                                    icon: const Icon(Icons.copy, size: 16),
+                                    label: const Text('复制'),
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: Colors.blue[600],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _clearDebugLogs() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('清空调试日志'),
+        content: const Text('确定要删除所有调试日志吗？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () async {
+              await DebugService.clearLogs();
+              Navigator.of(context).pop();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('调试日志已清空'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            },
+            child: const Text('确定', style: TextStyle(color: Colors.orange)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _exportLogs() {
+    final exportContent = DebugService.exportLogs();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('导出调试日志'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('日志已准备好导出'),
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              height: 200,
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: SingleChildScrollView(
+                child: Text(
+                  exportContent,
+                  style: const TextStyle(fontSize: 10, fontFamily: 'monospace'),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('关闭'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _copyLogsToClipboard(List<String> logs) async {
+    if (logs.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('没有日志可复制'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    final logContent = logs.join('\n');
+    await Clipboard.setData(ClipboardData(text: logContent));
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('已复制 ${logs.length} 条日志到剪贴板'),
+        backgroundColor: Colors.green,
+        action: SnackBarAction(
+          label: '查看',
+          textColor: Colors.white,
+          onPressed: () {
+            showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('已复制的内容'),
+                content: Container(
+                  width: double.maxFinite,
+                  height: 300,
+                  child: SingleChildScrollView(
+                    child: Text(
+                      logContent,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontFamily: 'monospace',
+                      ),
+                    ),
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('关闭'),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }

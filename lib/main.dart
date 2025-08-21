@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:powergo/screens/main_screen.dart';
 import 'package:powergo/services/settings_service.dart';
+import 'package:powergo/services/debug_service.dart';
 
 void main() {
   runApp(const PowerGoApp());
@@ -25,7 +26,14 @@ class _PowerGoAppState extends State<PowerGoApp> {
   @override
   void initState() {
     super.initState();
-    _loadTheme();
+    _initializeApp();
+  }
+
+  Future<void> _initializeApp() async {
+    // 初始化调试服务
+    await DebugService.init();
+    // 加载主题
+    await _loadTheme();
   }
 
   Future<void> _loadTheme() async {

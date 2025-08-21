@@ -14,6 +14,7 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
   final GlobalKey<ServersScreenState> _serversScreenKey = GlobalKey<ServersScreenState>();
+  final GlobalKey<SettingsScreenState> _settingsScreenKey = GlobalKey<SettingsScreenState>();
 
   @override
   void initState() {
@@ -57,15 +58,20 @@ class _MainScreenState extends State<MainScreen> {
     _serversScreenKey.currentState?.onSettingsChanged();
   }
 
+  void _onServersSettingsChanged() {
+    // 当服务器页面修改了设置时，通知设置页面更新
+    _settingsScreenKey.currentState?.onSettingsChanged();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
         children: [
-          ServersScreen(key: _serversScreenKey),
+          ServersScreen(key: _serversScreenKey, onSettingsChanged: _onServersSettingsChanged),
           const SizedBox(), // 占位符，因为添加页面现在是独立导航
-          SettingsScreen(onSettingsChanged: _onSettingsChanged),
+          SettingsScreen(key: _settingsScreenKey, onSettingsChanged: _onSettingsChanged),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(

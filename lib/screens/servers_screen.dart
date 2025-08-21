@@ -10,7 +10,9 @@ import '../widgets/server_card.dart';
 import './add_server_screen.dart'; // Import AddServerScreen
 
 class ServersScreen extends StatefulWidget {
-  const ServersScreen({Key? key}) : super(key: key);
+  final VoidCallback? onSettingsChanged;
+  
+  const ServersScreen({Key? key, this.onSettingsChanged}) : super(key: key);
 
   @override
   State<ServersScreen> createState() => ServersScreenState();
@@ -192,7 +194,7 @@ class ServersScreenState extends State<ServersScreen> with WidgetsBindingObserve
       ),
     );
 
-    if (result == true && mounted) {
+    if (result != null && result['success'] == true && mounted) {
       _loadServers(); 
       _showSuccessSnackBar('服务器更新成功');
     }
@@ -251,6 +253,9 @@ class ServersScreenState extends State<ServersScreen> with WidgetsBindingObserve
                   } else {
                     _stopAutoRefresh();
                   }
+                  
+                  // 通知主屏幕，设置页面需要更新
+                  widget.onSettingsChanged?.call();
                 },
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, // 减少点击区域
               ),
